@@ -1,4 +1,63 @@
-*.xlsx
-*.png
-*.ipynb_checkpoints/
+###########################################################
+# NHANES PROJECT — RAW DATA AND CACHE (DO NOT COMMIT)
+###########################################################
 
+# Raw .xpt files anywhere
+*.xpt
+*.XPT
+
+# The NHANES cache folder
+network/NHANES/nhanes_cache/
+
+# Merged and processed datasets
+network/NHANES/*.csv
+network/NHANES/*.csv.gz
+network/NHANES/*.parquet
+network/NHANES/*.feather
+
+###########################################################
+# GENERATED FIGURES / PLOTS
+###########################################################
+network/NHANES/*.png
+network/*.png
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.pdf
+
+###########################################################
+# PYTHON STANDARD IGNORES
+###########################################################
+
+# Bytecode and cache
+__pycache__/
+*.py[cod]
+
+# Virtual envs (if any)
+.env
+.venv
+env/
+venv/
+.python-version
+
+# Build directories
+build/
+dist/
+*.egg-info/
+
+###########################################################
+# JUPYTER NOTEBOOK SUPPORT
+###########################################################
+
+.ipynb_checkpoints/
+
+###########################################################
+# OS / EDITOR JUNK
+###########################################################
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
