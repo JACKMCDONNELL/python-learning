@@ -1,219 +1,286 @@
-# **Biovista Technical Appendix (Mathematical & Computational Framework)**
+# **Biovista Technical Appendix**
 
-## **1. Overview**
+# **1. Data Harmonization**
 
-Biovista integrates high-dimensional clinical and physiologic data to generate:
+Biovista standardizes all biomarkers before modeling.
 
-1. **Imputed, harmonized biomarker matrices**
-2. **Standardized z-scores**
-3. **A Gaussian Graphical Model (GGM) of partial correlations**
-4. **A patient-specific projection onto this population network**
-5. **A Network Stress Score (NSS)** representing systemic dysregulation
+## **1.1 Standardization Formula**
 
-This appendix describes the underlying mathematics used in the pipeline.
+$$
+z_{ij} = \frac{x_{ij} - \mu_j}{\sigma_j}
+$$
+
+Where:
+
+$$
+x_{ij} = \text{value for person } i \text{ on variable } j
+$$
+
+$$
+\mu_j = \text{NHANES mean of variable } j
+$$
+
+$$
+\sigma_j = \text{NHANES standard deviation of variable } j
+$$
 
 ---
 
-# **2. Data Harmonization & Imputation**
+# **2. KNN Missing Data Imputation**
 
-Biovista takes heterogeneous NHANES biomarkers and combines them into a unified matrix. Missing values are handled using **K-Nearest Neighbors (KNN) imputation**.
+## **2.1 Distance Between Two Individuals**
 
-### **2.1 Distance Function**
+$$
+d(i,k)
+=
+\sqrt{
+\sum_{l \in \mathcal{O}_i \cap \mathcal{O}_k}
+\left( x_{il} - x_{kl} \right)^2
+}
+$$
 
-For an observation ( i ) and a potential neighbor ( k ):
 
-[
-\displaystyle
+Where:
+
+$$
+\mathcal{O}_i =
+\text{set of variables observed for individual } i
+$$
+
+$$
+\mathcal{O}_k =
+\text{set of variables observed for individual } k
+$$
+
+Only overlapping observed variables contribute to the distance.
+
+---
+
+## **2.2 KNN Imputation Rule**
+
+## **2.2 KNN Imputation Rule**
+
+Given a partially observed matrix of biomarkers, missing values are filled using **K-Nearest Neighbors (KNN) imputation**.
+
+The imputed value for variable \( j \) of individual \( i \) is:
+
+$$
+\hat{x}_{ij}
+=
+\frac{1}{K}
+\sum_{k \in N_K(i,j)}
+x_{kj}
+$$
+
+Where:
+
+$$
+N_K(i,j)
+=
+\left\{
+k \,\middle|\,
+k \text{ is one of the } K \text{ nearest neighbors of individual } i
+\text{ with an observed value for } x_{kj}
+\right\}
+$$
+
+Distance between subjects is computed only on the variables observed in common:
+
+$$
 d(i,k) =
 \sqrt{
-\sum_{l \in \mathcal{O}*i \cap \mathcal{O}*k}
-\left( x*{il} - x*{kl} \right)^2
+\sum_{l \in \mathcal{O}_i \cap \mathcal{O}_k}
+\left( x_{il} - x_{kl} \right)^2
 }
-]
+$$
 
-Where:
+And we use:
 
-* ( \mathcal{O}_i ) = set of variables observed for subject ( i )
-* Only variables observed in **both** subjects contribute to the distance
+- \( K = 5 \)
+- Euclidean distance  
+- Standardized variables so no feature dominates
 
-### **2.2 KNN Imputation Rule**
-
-[
-\displaystyle
-\hat{x}*{ij} =
-\frac{1}{K}
-\sum*{k \in N_K(i,j)}
-x_{kj}
-]
-
-Where (N_K(i,j)) is the set of (K) nearest neighbors with non-missing values for variable (j.)
-
-We use (K = 5).
 
 ---
 
-# **3. Standardization (Z-Scoring)**
+# **3. Gaussian Graphical Model (GGM)**
 
-Each variable is standardized to have population mean 0 and standard deviation 1:
+## **3.1 Covariance Estimate**
 
-[
-\displaystyle
-Z_{ij}
-= \frac{ \hat{x}_{ij} - \mu_j }{ \sigma_j }
-]
+Let (Z) be the standardized matrix.
+The empirical covariance matrix is:
 
-Where:
-
-* ( \hat{x}_{ij} ) = imputed value
-* ( \mu_j ) = population mean for variable (j)
-* ( \sigma_j ) = population standard deviation
-
-This step makes all biomarkers comparable (unitless).
+$$
+S = \frac{1}{n} Z^\top Z
+$$
 
 ---
+## **3.2 Graphical Lasso Objective**
 
-# **4. Gaussian Graphical Model (GGM)**
+The precision matrix \( \Theta \) is estimated by solving the penalized likelihood:
 
-Biovista estimates a **sparse inverse covariance matrix** using the **Graphical Lasso**, identifying conditional dependencies between physiological variables.
-
-Let:
-
-* ( S ) = sample covariance matrix
-* ( \Theta = \Sigma^{-1} ) = precision matrix
-
-### **4.1 Optimization Objective**
-
-Graphical Lasso solves:
-
-[
-\begin{aligned}
-\hat{\Theta} =
+$$
+\Theta^\* =
 \arg\min_{\Theta \succ 0}
-\Big{
-& \mathrm{trace}(S\Theta)
-
-* \log \det(\Theta) \
-  & \quad + \lambda \sum_{j \neq k}
-  |\Theta_{jk}|
-  \Big}
-  \end{aligned}
-  ]
-
-Where:
-
-* ( \lambda ) controls sparsity
-* Off-diagonal zeros indicate **no conditional dependency**
-
-### **4.2 Partial Correlations**
-
-After estimating ( \hat{\Theta} ):
-
-[
-\displaystyle
-\rho_{jk} =
-
-* \frac{ \hat{\theta}*{jk} }
-  { \sqrt{ \hat{\theta}*{jj} \hat{\theta}_{kk} } }
-  ]
-
-Interpretation:
-
-* ( \rho_{jk} > 0 ): direct positive relationship controlling for all others
-* ( \rho_{jk} < 0 ): direct inverse relationship
-* ( \rho_{jk} = 0 ): conditionally independent
-
-Edges with (|\rho| < 0.10) are removed for clarity.
-
----
-
-# **5. Patient-Level Projection**
-
-The GGM defines the structure of the physiologic network. A patient is then projected onto this network by mapping their **individual z-scores** to node values.
-
-Let:
-
-* ( z_j ) = patient’s z-score for biomarker (j)
-* ( E = ) set of edges in the network
-
----
-
-# **6. Network Stress Score (NSS)**
-
-Biovista creates a single interpretable index summarizing system-level dysregulation.
-
-### **6.1 Node Stress**
-
-Each variable contributes stress proportional to:
-
-* How abnormal it is (|z|)
-* How central it is in the physiologic network (degree)
-
-[
-\displaystyle
-s_j = |z_j| \cdot \deg(j)
-]
-
-### **6.2 Total Network Score**
-
-[
-\displaystyle
-\text{NSS}
-= \sum_{j=1}^{p} s_j
-]
+\left[
+\mathrm{tr}(S \Theta)
+-
+\ln \det(\Theta)
++
+\lambda \lVert \Theta \rVert_{1}
+\right]
+$$
 
 Where:
 
-* (p) = number of variables in the patient’s network
-* Higher scores = more global physiologic perturbation
+- \( \Theta = \Sigma^{-1} \) is the precision matrix  
+- \( \lambda \) is the sparsity penalty  
+- The \( \ell_{1} \) norm is:
+
+$$
+\lVert \Theta \rVert_1
+=
+\sum_{i \ne j} \lvert \Theta_{ij} \rvert
+$$
+
+The penalty forces many off-diagonal elements to zero → producing a **sparse**, **interpretable** physiological network structure.
+
+
+## **3.3 Partial Correlations**
+
+For each pair of biomarkers (i) and (j):
+
+$$
+\rho_{ij}
+=
+-\frac{
+\Theta_{ij}
+}{
+\sqrt{
+\Theta_{ii}\Theta_{jj}
+}
+}
+$$
+
+With:
+
+$$
+\rho_{ii} = 0
+$$
+
+Edges in the network are kept if:
+
+$$
+|\rho_{ij}| \ge 0.10
+$$
 
 ---
 
-# **7. Interpretation of NSS**
+# **4. Node Attributes in the Network**
 
-* **Low NSS (~0–10)**
+For each node representing a biomarker:
 
-  * "Michael" example: normal biomarkers → minimal network stress
-* **Moderate NSS (~15–30)**
+$$
+\text{NodeZ}(j) = z_j
+$$
 
-  * Local dysregulation but retains network stability
-* **High NSS (30+)**
-
-  * "Daniel" example: multi-system abnormalities amplify network stress
-  * Nonlinear propagation via hubs magnifies pathology
-
----
-
-# **8. Clinical Meaning**
-
-While NSS is not a diagnostic test, it provides:
-
-1. **A systems-biology view** of patient health
-2. **A graphical explanation** of how abnormalities cluster
-3. **A way to quantify diffuse metabolic / lifestyle risk**
-4. **A tool for monitoring improvement over time**
+$$
+\text{System}(j)
+=
+\text{assigned physiology category}
+$$
 
 ---
 
-# **9. Summary**
+# **5. Patient-Level Embedding**
 
-Biovista combines:
+Each patient’s biomarker panel is mapped onto the network.
 
-* KNN imputation
-* Standardization
-* Graphical Lasso
-* Partial correlations
-* Network theory
-* Patient z-score overlays
+The per-node value for a patient with observed (x_j):
 
-…into a clinically interpretable framework for understanding systemic physiologic health.
+$$
+z_j
+=
+\frac{x_j - \mu_j}{\sigma_j}
+$$
+
+Node color reflects (z_j).
+Node size reflects (|z_j|).
+Edges reflect partial correlations from the NHANES population.
 
 ---
 
-If you’d like, I can also generate:
+# **6. Network Deterioration Score**
 
-* **LaTeX PDF version**
-* **DOCX Word version** (with equations fully rendered)
-* **A slide-ready appendix**
-* **A GitHub-ready `README.md`**
+## **6.1 Node Contribution**
 
-Just tell me!
+Each biomarker contributes a node score:
+
+$$
+s_j = |z_j| \cdot d_j
+$$
+
+Where:
+
+$$
+d_j = \text{degree of node } j \text{ (number of edges)}
+$$
+
+---
+
+## **6.2 Total Network Score**
+
+The patient’s overall network dysregulation is:
+
+$$
+S_{\text{network}}
+=
+\sum_{j=1}^{p}
+|z_j| \cdot d_j
+$$
+
+Interpretation thresholds:
+
+$$
+S \approx 0
+\quad\rightarrow\quad
+\text{healthy, well-regulated}
+$$
+
+$$
+10 \le S \le 20
+\quad\rightarrow\quad
+\text{moderate physiologic strain}
+$$
+
+$$
+S \ge 30
+\quad\rightarrow\quad
+\text{broad multisystem dysregulation}
+$$
+
+Example scores:
+
+$$
+S_{\text{Michael}} = 0
+$$
+
+$$
+S_{\text{Daniel}} = 38.5
+$$
+
+---
+
+# **7. Visualization Layout**
+
+Biovista uses a force-directed network, approximated by:
+
+$$
+F = F_{\text{attraction}} + F_{\text{repulsion}}
+$$
+
+Attraction pulls connected nodes together.
+Repulsion spreads nodes apart.
+
+This reveals dysregulated clusters visually.
+
